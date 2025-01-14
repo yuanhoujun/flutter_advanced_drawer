@@ -39,9 +39,9 @@ class _HomeScreenState extends State<HomeScreen> {
       controller: _advancedDrawerController,
       animationCurve: Curves.easeInOut,
       animationDuration: const Duration(milliseconds: 300),
-      animateChildDecoration: true,
+      animateChildDecoration: false,
       rtlOpening: false,
-      // openScale: 1.0,
+      openScale: 1.0,
       disabledGestures: false,
       childDecoration: const BoxDecoration(
         // NOTICE: Uncomment if you want to add shadow behind the page.
@@ -52,7 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
         //     blurRadius: 0.0,
         //   ),
         // ],
-        borderRadius: const BorderRadius.all(Radius.circular(16)),
+        borderRadius: const BorderRadius.all(Radius.circular(0)),
       ),
       child: Scaffold(
         appBar: AppBar(
