@@ -29,6 +29,18 @@ An advanced drawer widget, that can be fully customized with size, text, color, 
 | `drawerSlideRatio`         | How far the drawer segment should slide with the content.  | _double_                   | 0                    |
 | `drawerCloseSemanticLabel` | Semantic label for the close drawer button.                | _String_                   | 'Close drawer'       |
 
+## Gesture behavior
+
+Dragging follows the finger linearly, even when `animationCurve` is set.
+The curve applies only to automatic opening and closing, including release.
+A horizontal fling of at least `minFlingVelocity` (default: 365 logical pixels
+per second) opens or closes in the fling direction. Slower drags use the
+halfway point. Both opening directions are supported. Cancelled drags return
+to the current controller state.
+
+For a smooth release, use `animationCurve: Curves.easeOutCubic` and
+`animationDuration: const Duration(milliseconds: 250)`.
+
 ## Preview
 
 |                     Preview Tap                     |                  Preview Gesture                   |

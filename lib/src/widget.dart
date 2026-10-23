@@ -19,9 +19,11 @@ class AdvancedDrawer extends StatefulWidget {
     this.animateChildDecoration = true,
     this.rtlOpening = false,
     this.disabledGestures = false,
+    this.minFlingVelocity = 365.0,
     this.animationController,
     this.drawerCloseSemanticLabel = 'Close drawer',
-  }) : super(key: key);
+  })  : assert(minFlingVelocity > 0),
+        super(key: key);
 
   /// Child widget. (Usually widget that represent a screen)
   final Widget child;
@@ -56,7 +58,7 @@ class AdvancedDrawer extends StatefulWidget {
   /// Animation duration.
   final Duration animationDuration;
 
-  /// Animation curve.
+  /// Curve for automatic opening and closing. Dragging always follows the finger.
   final Curve? animationCurve;
 
   /// Child container decoration in open widget state.
@@ -71,6 +73,10 @@ class AdvancedDrawer extends StatefulWidget {
 
   /// Disable gestures.
   final bool disabledGestures;
+
+  /// Minimum horizontal speed in logical pixels per second for a fling.
+  /// Slower gestures use the halfway point to decide whether to open.
+  final double minFlingVelocity;
 
   /// Controller that controls widget animation.
   final AnimationController? animationController;
@@ -100,24 +106,40 @@ class _AdvancedDrawerState extends State<AdvancedDrawer>
   late Animation<Offset> _drawerSlideAnimation;
   late Animation<Decoration> _childDecorationAnimation;
 
-  late double _offsetValue;
-  late Offset _freshPosition;
-
   bool _captured = false;
-  Offset? _startPosition;
 
   @override
   void initState() {
     super.initState();
 
+    _spareAnimationController = AnimationController(
+      vsync: this,
+      value: _controller.value.visible ? 1 : 0,
+    );
     _initControllers();
   }
 
   @override
   void didUpdateWidget(covariant AdvancedDrawer oldWidget) {
-    _initControllers();
-
     super.didUpdateWidget(oldWidget);
+    (oldWidget.controller ?? _spareController)
+        .removeListener(_handleControllerChanged);
+    final previousAnimation = _animationController;
+    final progress = previousAnimation.value;
+    final wasAnimating = previousAnimation.isAnimating;
+    if (oldWidget.animationController != widget.animationController) {
+      previousAnimation.stop();
+    }
+    _initControllers();
+    if (previousAnimation != _animationController) {
+      _animationController.value = progress;
+    }
+    if (oldWidget.controller != widget.controller ||
+        previousAnimation != _animationController && wasAnimating ||
+        widget.disabledGestures && _captured) {
+      _captured = false;
+      _handleControllerChanged();
+    }
   }
 
   @override
@@ -263,23 +285,13 @@ class _AdvancedDrawerState extends State<AdvancedDrawer>
       ..removeListener(_handleControllerChanged)
       ..addListener(_handleControllerChanged);
 
-    _spareAnimationController = AnimationController(
-      vsync: this,
-      value: _controller.value.visible ? 1 : 0,
-    );
-
     _animationController =
         widget.animationController ?? _spareAnimationController;
 
     _animationController.reverseDuration =
         _animationController.duration = widget.animationDuration;
 
-    final parentAnimation = widget.animationCurve == null
-        ? _animationController
-        : CurvedAnimation(
-            curve: widget.animationCurve!,
-            parent: _animationController,
-          );
+    final parentAnimation = _animationController;
 
     _drawerScaleAnimation = Tween<double>(
       begin: widget.initialDrawerScale,
@@ -308,63 +320,60 @@ class _AdvancedDrawerState extends State<AdvancedDrawer>
   }
 
   void _handleControllerChanged() {
-    // If widget is not mounted do nothing
     if (!mounted) return;
-    // If the value of _controller is visible, forward the animation; otherwise, reverse it
-    _controller.value.visible
-        ? _animationController.forward()
-        : _animationController.reverse();
+    if (_controller.value.visible) {
+      _animationController.animateTo(
+        1,
+        duration: widget.animationDuration,
+        curve: widget.animationCurve ?? Curves.linear,
+      );
+    } else {
+      _animationController.animateBack(
+        0,
+        duration: widget.animationDuration,
+        curve: widget.animationCurve ?? Curves.linear,
+      );
+    }
   }
 
   void _handleDragStart(DragStartDetails details) {
+    _animationController.stop();
     _captured = true;
-    _startPosition = details.globalPosition;
-    _offsetValue = _animationController.value;
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
     if (!_captured) return;
-
-    final screenSize = MediaQuery.of(context).size;
-
-    _freshPosition = details.globalPosition;
-
-    final diff = (_freshPosition - _startPosition!).dx;
-
-    _animationController.value = _offsetValue +
-        (diff / (screenSize.width * widget.openRatio)) *
-            (widget.rtlOpening ? -1 : 1);
+    final travel = context.size!.width * widget.openRatio;
+    if (travel <= 0) return;
+    _animationController.value +=
+        details.delta.dx / travel * (widget.rtlOpening ? -1 : 1);
   }
 
   void _handleDragEnd(DragEndDetails details) {
     if (!_captured) return;
-
     _captured = false;
-
-    if (_animationController.value >= 0.5) {
-      if (_controller.value.visible) {
-        _animationController.forward();
-      } else {
-        _controller.showDrawer();
-      }
+    final velocity =
+        (details.primaryVelocity ?? 0) * (widget.rtlOpening ? -1 : 1);
+    final open = velocity.abs() >= widget.minFlingVelocity
+        ? velocity > 0
+        : _animationController.value >= 0.5;
+    if (open) {
+      _controller.showDrawer();
     } else {
-      if (!_controller.value.visible) {
-        _animationController.reverse();
-      } else {
-        _controller.hideDrawer();
-      }
+      _controller.hideDrawer();
     }
   }
 
   void _handleDragCancel() {
+    if (!_captured) return;
     _captured = false;
+    _handleControllerChanged();
   }
 
   @override
   void dispose() {
-    _spareController
-      ..removeListener(_handleControllerChanged)
-      ..dispose();
+    _controller.removeListener(_handleControllerChanged);
+    _spareController.dispose();
 
     _spareAnimationController.dispose();
 

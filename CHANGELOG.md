@@ -1,3 +1,11 @@
+## Unreleased
+
+* Add configurable velocity-based fling opening and closing, including RTL.
+* Keep dragging linear and apply animation curves only when settling.
+* Restore the controller state on drag cancellation and interrupt settling on touch.
+* Use actual drawer width for drag travel and preserve progress on rebuild.
+* Reuse the internal animation controller and detach external controller listeners.
+
 ## 1.5.0
 
 * Added `drawerCloseSemanticLabel` parameter to set a semantic label for the tappable area that closes the drawer.
